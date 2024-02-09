@@ -81,6 +81,7 @@ private:
   GetNumSubscribersFn num_subscribers_fn_;
   PublishFn publish_fn_;
 
+  template<typename MessageT, typename AllocatorT>
   friend class Publisher;  // to get publish_fn_ directly
 };
 

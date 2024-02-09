@@ -56,13 +56,23 @@ struct Impl
 
 static Impl * kImpl = new Impl();
 
-Publisher create_publisher(
+PubLoaderPtr getPubLoader()
+{
+  return kImpl->pub_loader_;
+}
+
+SubLoaderPtr getSubLoader()
+{
+  return kImpl->sub_loader_;
+}
+
+ImagePublisher::SharedPtr create_publisher(
   rclcpp::Node * node,
   const std::string & base_topic,
   rmw_qos_profile_t custom_qos,
   rclcpp::PublisherOptions options)
 {
-  return Publisher(node, base_topic, kImpl->pub_loader_, custom_qos, options);
+  return std::make_shared<ImagePublisher>(node, base_topic, kImpl->pub_loader_, custom_qos, options);
 }
 
 Subscriber create_subscription(
@@ -141,7 +151,7 @@ ImageTransport::ImageTransport(rclcpp::Node::SharedPtr node)
 
 ImageTransport::~ImageTransport() = default;
 
-Publisher ImageTransport::advertise(const std::string & base_topic, uint32_t queue_size, bool latch)
+ImagePublisher::SharedPtr ImageTransport::advertise(const std::string & base_topic, uint32_t queue_size, bool latch)
 {
   // TODO(ros2) implement when resolved: https://github.com/ros2/ros2/issues/464
   (void) latch;
@@ -150,7 +160,7 @@ Publisher ImageTransport::advertise(const std::string & base_topic, uint32_t que
   return create_publisher(impl_->node_.get(), base_topic, custom_qos);
 }
 
-Publisher ImageTransport::advertise(
+ImagePublisher::SharedPtr ImageTransport::advertise(
   const std::string & base_topic, rmw_qos_profile_t custom_qos,
   bool latch)
 {

@@ -84,7 +84,7 @@ TEST_F(MessagePassingTesting, one_message_passing)
   test_rclcpp::wait_for_subscriber(node_, sub.getTopic());
 
   ASSERT_EQ(0, total_images_received);
-  ASSERT_EQ(1u, pub.getNumSubscribers());
+  ASSERT_EQ(1u, pub->getNumSubscribers());
   ASSERT_EQ(1u, sub.getNumPublishers());
 
   executor.spin_node_some(node_);
@@ -93,7 +93,7 @@ TEST_F(MessagePassingTesting, one_message_passing)
   size_t retry = 0;
   while (retry < max_retries && total_images_received == 0) {
     // generate random image and publish it
-    pub.publish(generate_random_image());
+    pub->publish(generate_random_image());
 
     executor.spin_node_some(node_);
     size_t loop = 0;

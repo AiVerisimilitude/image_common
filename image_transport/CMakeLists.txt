@@ -22,7 +22,7 @@ find_package(sensor_msgs REQUIRED)
 # Build image_transport library
 add_library(${PROJECT_NAME}
   src/camera_common.cpp
-  src/publisher.cpp
+  src/plugin_publisher.cpp
   src/subscriber.cpp
   src/single_subscriber_publisher.cpp
   src/camera_publisher.cpp
@@ -42,16 +42,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE "IMAGE_TRANSPORT_BUILDING_DLL")
 
-# Build image_transport_plugins library (raw)
-add_library(${PROJECT_NAME}_plugins
-  src/manifest.cpp
-)
-add_library(${PROJECT_NAME}::${PROJECT_NAME}_plugins ALIAS ${PROJECT_NAME}_plugins)
-
-target_link_libraries(${PROJECT_NAME}_plugins PRIVATE
-  ${PROJECT_NAME}
-  pluginlib::pluginlib)
-
 # Build list_transports
 add_executable(list_transports src/list_transports.cpp)
 target_link_libraries(list_transports
@@ -69,7 +59,7 @@ pluginlib_export_plugin_description_file(image_transport default_plugins.xml)
 
 # Install libraries
 install(
-  TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_plugins
+  TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin

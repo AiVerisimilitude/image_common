@@ -86,10 +86,10 @@ TEST_F(TestSubscriber, callback_groups) {
   // Create a publisher node.
   auto node_publisher = rclcpp::Node::make_shared("image_publisher", rclcpp::NodeOptions());
   image_transport::ImageTransport it_publisher(node_publisher);
-  image_transport::Publisher pub = it_publisher.advertise("camera/image", 1);
+  image_transport::ImagePublisher::SharedPtr pub = it_publisher.advertise("camera/image", 1);
 
   auto msg = sensor_msgs::msg::Image();
-  auto timer = node_publisher->create_wall_timer(100ms, [&]() {pub.publish(msg);});
+  auto timer = node_publisher->create_wall_timer(100ms, [&]() {pub->publish(msg);});
 
   // Create a subscriber to read the images.
   std::atomic<bool> flag_1 = false;
@@ -145,12 +145,12 @@ TEST_F(TestSubscriber, callback_groups_custom_qos) {
   // Create a publisher node.
   auto node_publisher = rclcpp::Node::make_shared("image_publisher", rclcpp::NodeOptions());
   image_transport::ImageTransport it_publisher(node_publisher);
-  image_transport::Publisher pub = it_publisher.advertise(
+  image_transport::ImagePublisher::SharedPtr pub = it_publisher.advertise(
     "camera/image",
     rmw_qos_profile_sensor_data);
 
   auto msg = sensor_msgs::msg::Image();
-  auto timer = node_publisher->create_wall_timer(100ms, [&]() {pub.publish(msg);});
+  auto timer = node_publisher->create_wall_timer(100ms, [&]() {pub->publish(msg);});
 
   // Create a subscriber to read the images.
   std::atomic<bool> flag_1 = false;

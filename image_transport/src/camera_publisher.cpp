@@ -63,13 +63,13 @@ struct CameraPublisher::Impl
   {
     if (!unadvertised_) {
       unadvertised_ = true;
-      image_pub_.shutdown();
+      image_pub_->shutdown();
       info_pub_.reset();
     }
   }
 
   rclcpp::Logger logger_;
-  Publisher image_pub_;
+  ImagePublisher::SharedPtr image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr info_pub_;
   bool unadvertised_;
 };
@@ -97,7 +97,7 @@ size_t CameraPublisher::getNumSubscribers() const
 {
   if (impl_ && impl_->isValid()) {
     return std::max(
-      impl_->image_pub_.getNumSubscribers(),
+      impl_->image_pub_->getNumSubscribers(),
       impl_->info_pub_->get_subscription_count());
   }
   return 0;
@@ -106,7 +106,7 @@ size_t CameraPublisher::getNumSubscribers() const
 std::string CameraPublisher::getTopic() const
 {
   if (impl_) {
-    return impl_->image_pub_.getTopic();
+    return impl_->image_pub_->getTopic();
   }
   return std::string();
 }
@@ -132,7 +132,7 @@ void CameraPublisher::publish(
     return;
   }
 
-  impl_->image_pub_.publish(image);
+  impl_->image_pub_->publish(image);
   impl_->info_pub_->publish(info);
 }
 
@@ -149,7 +149,7 @@ void CameraPublisher::publish(
     return;
   }
 
-  impl_->image_pub_.publish(*image);
+  impl_->image_pub_->publish(*image);
   impl_->info_pub_->publish(*info);
 }
 
