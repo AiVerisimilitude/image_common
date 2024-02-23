@@ -83,7 +83,7 @@ TEST_F(TestPublisher, RemappedPublisher) {
   auto pub = image_transport::create_publisher(node_.get(), "new_topic");
 
   ASSERT_EQ("/namespace/new_topic", sub.getTopic());
-  ASSERT_EQ("/namespace/new_topic", pub->getTopic());
+  ASSERT_EQ("/namespace/new_topic", pub.getTopic());
 
   test_rclcpp::wait_for_subscriber(node_, sub.getTopic());
 
@@ -93,7 +93,7 @@ TEST_F(TestPublisher, RemappedPublisher) {
   size_t nSub = 0;
   size_t nPub = 0;
   while (retry < max_retries && nPub == 0 && nSub == 0) {
-    nSub = pub->getNumSubscribers();
+    nSub = pub.getNumSubscribers();
     nPub = sub.getNumPublishers();
     std::this_thread::sleep_for(sleep_per_loop);
   }
@@ -104,7 +104,7 @@ TEST_F(TestPublisher, RemappedPublisher) {
   retry = 0;
   while (retry < max_retries && !received) {
     // generate random image and publish it
-    pub->publish(image);
+    pub.publish(image);
 
     executor.spin_node_some(node_);
     executor.spin_node_some(node_remap_);

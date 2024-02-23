@@ -26,67 +26,50 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef IMAGE_TRANSPORT__SINGLE_SUBSCRIBER_PUBLISHER_HPP_
-#define IMAGE_TRANSPORT__SINGLE_SUBSCRIBER_PUBLISHER_HPP_
+#ifndef IMAGE_TRANSPORT__RAW_SUBSCRIBER_HPP_
+#define IMAGE_TRANSPORT__RAW_SUBSCRIBER_HPP_
 
-#include <functional>
 #include <string>
+#include <memory>
 
-#include "rclcpp/macros.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
+#include "image_transport/simple_subscriber_plugin.hpp"
 #include "image_transport/visibility_control.hpp"
 
 namespace image_transport
 {
 
 /**
- * \brief Allows publication of an image to a single subscriber. Only available inside
- * subscriber connection callbacks.
+ * \brief The default SubscriberPlugin.
+ *
+ * RawSubscriber is a simple wrapper for ros::Subscriber which listens for Image messages
+ * and passes them through to the callback.
  */
-class SingleSubscriberPublisher
+class RawSubscriber : public SimpleSubscriberPlugin<sensor_msgs::msg::Image>
 {
-private:
-  SingleSubscriberPublisher(const SingleSubscriberPublisher &) = delete;
-  SingleSubscriberPublisher & operator=(const SingleSubscriberPublisher &) = delete;
-
 public:
-  typedef std::function<size_t ()> GetNumSubscribersFn;
-  typedef std::function<void (const sensor_msgs::msg::Image &)> PublishFn;
+  virtual ~RawSubscriber() {}
 
-  IMAGE_TRANSPORT_PUBLIC
-  SingleSubscriberPublisher(
-    const std::string & caller_id, const std::string & topic,
-    const GetNumSubscribersFn & num_subscribers_fn,
-    const PublishFn & publish_fn);
+  std::string getTransportName() const override
+  {
+    return "raw";
+  }
 
-  IMAGE_TRANSPORT_PUBLIC
-  std::string getSubscriberName() const;
+protected:
+  void internalCallback(
+    const std::shared_ptr<const sensor_msgs::msg::Image> & message,
+    const Callback & user_cb) override
+  {
+    user_cb(message);
+  }
 
-  IMAGE_TRANSPORT_PUBLIC
-  std::string getTopic() const;
-
-  IMAGE_TRANSPORT_PUBLIC
-  size_t getNumSubscribers() const;
-
-  IMAGE_TRANSPORT_PUBLIC
-  void publish(const sensor_msgs::msg::Image & message) const;
-
-  IMAGE_TRANSPORT_PUBLIC
-  void publish(const sensor_msgs::msg::Image::ConstSharedPtr & message) const;
-
-private:
-  std::string caller_id_;
-  std::string topic_;
-  GetNumSubscribersFn num_subscribers_fn_;
-  PublishFn publish_fn_;
-
-  template<typename MessageT, typename AllocatorT>
-  friend class PublisherBase;  // to get publish_fn_ directly
+  std::string getTopicToSubscribe(const std::string & base_topic) const override
+  {
+    return base_topic;
+  }
 };
-
-typedef std::function<void (const SingleSubscriberPublisher &)> SubscriberStatusCallback;
 
 }  // namespace image_transport
 
-#endif  // IMAGE_TRANSPORT__SINGLE_SUBSCRIBER_PUBLISHER_HPP_
+#endif  // IMAGE_TRANSPORT__RAW_SUBSCRIBER_HPP_

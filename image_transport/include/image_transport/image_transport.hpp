@@ -31,7 +31,7 @@
 
 #include <functional>
 #include <memory>
-#include <sensor_msgs/msg/detail/image__struct.hpp>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -48,7 +48,7 @@
 namespace image_transport
 {
 
-using ImagePublisher = Publisher<sensor_msgs::msg::Image>;
+using Publisher = PublisherBase<sensor_msgs::msg::Image>;
 
 PubLoaderPtr getPubLoader();
 SubLoaderPtr getSubLoader();
@@ -57,17 +57,17 @@ SubLoaderPtr getSubLoader();
  * \brief Advertise an image topic, free function version.
  */
 IMAGE_TRANSPORT_PUBLIC
-ImagePublisher::SharedPtr create_publisher(
+Publisher create_publisher(
   rclcpp::Node * node,
   const std::string & base_topic,
   rmw_qos_profile_t custom_qos = rmw_qos_profile_default,
   rclcpp::PublisherOptions options = rclcpp::PublisherOptions());
 
- template<
-    typename MessageT,
-    typename AllocatorT = std::allocator<void>,
-    typename PublisherT = Publisher<MessageT, AllocatorT>>
-  std::shared_ptr<PublisherT>
+template<
+  typename MessageT,
+  typename AllocatorT = std::allocator<void>,
+  typename PublisherT = PublisherBase<MessageT, AllocatorT>>
+std::shared_ptr<PublisherT>
 IMAGE_TRANSPORT_PUBLIC
 create_type_adapted_publisher(
   rclcpp::Node * node,
@@ -89,6 +89,21 @@ Subscriber create_subscription(
   const std::string & transport,
   rmw_qos_profile_t custom_qos = rmw_qos_profile_default,
   rclcpp::SubscriptionOptions options = rclcpp::SubscriptionOptions());
+
+template<typename AdapterT, typename CallbackT>
+typename rclcpp::Subscription<AdapterT>::SharedPtr create_type_adapted_subscription(
+  rclcpp::Node * node,
+  const std::string & base_topic,
+  CallbackT && callback,
+  rmw_qos_profile_t custom_qos = rmw_qos_profile_default,
+  rclcpp::SubscriptionOptions options = rclcpp::SubscriptionOptions())
+{
+  auto qos = rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(custom_qos), custom_qos);
+  return node->create_subscription<AdapterT>(
+    base_topic + "/raw", qos,
+    std::forward<CallbackT>(callback),
+    options);
+}
 
 /*!
  * \brief Advertise a camera, free function version.
@@ -141,13 +156,13 @@ public:
    * \brief Advertise an image topic, simple version.
    */
   IMAGE_TRANSPORT_PUBLIC
-  ImagePublisher::SharedPtr advertise(const std::string & base_topic, uint32_t queue_size, bool latch = false);
+  Publisher advertise(const std::string & base_topic, uint32_t queue_size, bool latch = false);
 
   /*!
    * \brief Advertise an image topic, simple version.
    */
   IMAGE_TRANSPORT_PUBLIC
-  ImagePublisher::SharedPtr advertise(
+  Publisher advertise(
     const std::string & base_topic, rmw_qos_profile_t custom_qos,
     bool latch = false);
 

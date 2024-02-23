@@ -49,11 +49,11 @@ protected:
 TEST_F(TestPublisher, publisher) {
   auto pub = image_transport::create_publisher(node_.get(), "camera/image");
   EXPECT_EQ(node_->get_node_graph_interface()->count_publishers("camera/image"), 1u);
-  pub->shutdown();
+  pub.shutdown();
   EXPECT_EQ(node_->get_node_graph_interface()->count_publishers("camera/image"), 0u);
   // coverage tests: invalid publisher should fail but not crash
-  pub->publish(sensor_msgs::msg::Image());
-  pub->publish(sensor_msgs::msg::Image::ConstSharedPtr());
+  pub.publish(sensor_msgs::msg::Image());
+  pub.publish(sensor_msgs::msg::Image::ConstSharedPtr());
 }
 
 TEST_F(TestPublisher, image_transport_publisher) {

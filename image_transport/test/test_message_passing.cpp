@@ -84,7 +84,7 @@ TEST_F(MessagePassingTesting, one_message_passing)
   test_rclcpp::wait_for_subscriber(node_, sub.getTopic());
 
   ASSERT_EQ(0, total_images_received);
-  ASSERT_EQ(1u, pub->getNumSubscribers());
+  ASSERT_EQ(1u, pub.getNumSubscribers());
   ASSERT_EQ(1u, sub.getNumPublishers());
 
   executor.spin_node_some(node_);
@@ -93,7 +93,7 @@ TEST_F(MessagePassingTesting, one_message_passing)
   size_t retry = 0;
   while (retry < max_retries && total_images_received == 0) {
     // generate random image and publish it
-    pub->publish(generate_random_image());
+    pub.publish(generate_random_image());
 
     executor.spin_node_some(node_);
     size_t loop = 0;
@@ -136,6 +136,82 @@ TEST_F(MessagePassingTesting, one_camera_message_passing)
   while (retry < max_retries && total_images_received == 0) {
     // generate random image and publish it
     pub.publish(*generate_random_image().get(), sensor_msgs::msg::CameraInfo());
+
+    executor.spin_node_some(node_);
+    size_t loop = 0;
+    while ((total_images_received != 1) && (loop++ < max_loops)) {
+      std::this_thread::sleep_for(sleep_per_loop);
+      executor.spin_node_some(node_);
+    }
+  }
+
+  ASSERT_EQ(1, total_images_received);
+}
+
+template<>
+struct rclcpp::TypeAdapter<
+  std::string,
+  sensor_msgs::msg::Image
+>
+{
+  using is_specialized = std::true_type;
+  using custom_type = std::string;
+  using ros_message_type = sensor_msgs::msg::Image;
+
+  static
+  void
+  convert_to_ros_message(
+    const custom_type & source,
+    ros_message_type & destination)
+  {
+    destination.encoding = source;
+  }
+
+  static
+  void
+  convert_to_custom(
+    const ros_message_type & source,
+    custom_type & destination)
+  {
+    destination = source.encoding;
+  }
+};
+
+using AdaptedType = rclcpp::TypeAdapter<std::string, sensor_msgs::msg::Image>;
+
+void typeAdaptedCallback(std::unique_ptr<AdaptedType> msg)
+{
+  (void) msg;
+  total_images_received++;
+}
+
+TEST_F(MessagePassingTesting, type_adapted_message_passing)
+{
+  const size_t max_retries = 3;
+  const size_t max_loops = 200;
+  const std::chrono::milliseconds sleep_per_loop = std::chrono::milliseconds(10);
+
+  rclcpp::executors::SingleThreadedExecutor executor;
+  total_images_received = 0;
+
+  auto pub =
+    image_transport::create_type_adapted_publisher<AdaptedType>(node_.get(), "camera/image");
+  auto sub =
+    image_transport::create_subscription(node_.get(), "camera/image", imageCallback, "raw");
+
+  test_rclcpp::wait_for_subscriber(node_, sub.getTopic());
+
+  ASSERT_EQ(0, total_images_received);
+  ASSERT_EQ(1u, pub->getNumSubscribers());
+  ASSERT_EQ(1u, sub.getNumPublishers());
+
+  executor.spin_node_some(node_);
+  ASSERT_EQ(0, total_images_received);
+
+  size_t retry = 0;
+  while (retry < max_retries && total_images_received == 0) {
+    // generate random image and publish it
+    pub->publish(std::make_unique<std::string>("random_image"));
 
     executor.spin_node_some(node_);
     size_t loop = 0;

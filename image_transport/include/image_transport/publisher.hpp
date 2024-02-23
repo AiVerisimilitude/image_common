@@ -29,8 +29,10 @@
 #ifndef IMAGE_TRANSPORT__PUBLISHER_HPP_
 #define IMAGE_TRANSPORT__PUBLISHER_HPP_
 
-#include <memory>
 #include <string>
+#include <memory>
+#include <utility>
+#include <tracy/Tracy.hpp>
 
 #include "rclcpp/macros.hpp"
 #include "rclcpp/node.hpp"
@@ -64,7 +66,7 @@ namespace image_transport
  * given base topic go out of scope the topic (and all subtopics) will be unadvertised.
  */
 template<typename MessageT = sensor_msgs::msg::Image, typename AllocatorT = std::allocator<void>>
-class Publisher
+class PublisherBase
 {
 public:
   using PublishedType = typename rclcpp::TypeAdapter<MessageT>::custom_type;
@@ -78,24 +80,27 @@ public:
   using ROSMessageTypeAllocator = typename ROSMessageTypeAllocatorTraits::allocator_type;
   using ROSMessageTypeDeleter = rclcpp::allocator::Deleter<ROSMessageTypeAllocator, ROSMessageType>;
 
-  static_assert(std::is_same_v<ROSMessageType, sensor_msgs::msg::Image>, "Ros Message Type must be sensor_msgs::msg::Image");
+  static_assert(
+    std::is_same_v<ROSMessageType, sensor_msgs::msg::Image>,
+    "Ros Message Type must be sensor_msgs::msg::Image");
 
-  RCLCPP_SMART_PTR_DEFINITIONS(Publisher<MessageT, AllocatorT>)
+  RCLCPP_SMART_PTR_DEFINITIONS(PublisherBase<MessageT, AllocatorT>)
 
   IMAGE_TRANSPORT_PUBLIC
-  Publisher() = default;
+  PublisherBase() = default;
 
   IMAGE_TRANSPORT_PUBLIC
-  Publisher(
+  PublisherBase(
     rclcpp::Node * nh,
     const std::string & base_topic,
     PubLoaderPtr loader,
     rmw_qos_profile_t custom_qos,
     rclcpp::PublisherOptions options = rclcpp::PublisherOptions())
-      // Resolve the name explicitly because otherwise the compressed topics don't remap
-      // properly (#3652).
-  : image_topic_(rclcpp::expand_topic_or_service_name(base_topic, nh->get_name(), nh->get_namespace()))
-  , plugin_publisher(nh, image_topic_, std::move(loader), custom_qos, options)
+  // Resolve the name explicitly because otherwise the compressed topics don't remap
+  // properly (#3652).
+  : image_topic_(rclcpp::expand_topic_or_service_name(base_topic, nh->get_name(),
+      nh->get_namespace()))
+    , plugin_publisher(nh, image_topic_, std::move(loader), custom_qos, options)
   {
     auto qos = rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(custom_qos), custom_qos);
     raw_publisher = nh->create_publisher<MessageT>(image_topic_ + "/raw", qos, options);
@@ -133,7 +138,7 @@ public:
   {
     publish(message);
 
-    if (raw_publisher->get_subscription_count() > 0){
+    if (raw_publisher->get_subscription_count() > 0) {
       raw_publisher->publish(message);
     }
   }
@@ -141,15 +146,16 @@ public:
   /*!
    * \brief Publish an image on the topics associated with this Publisher.
    */
+  template<class T = PublishedType>
   typename std::enable_if_t<
-    std::is_same<PublishedType, sensor_msgs::msg::Image>::value
+    std::is_same<T, sensor_msgs::msg::Image>::value
   >
   IMAGE_TRANSPORT_PUBLIC
   publish(const sensor_msgs::msg::Image::ConstSharedPtr & message) const
   {
     publish(message);
 
-    if (raw_publisher->get_subscription_count() > 0){
+    if (raw_publisher->get_subscription_count() > 0) {
       raw_publisher->publish(*message);
     }
   }
@@ -158,22 +164,70 @@ public:
    * \brief Publish a type adapted image on the topics associated with this Publisher.
    */
   template<typename T>
-  typename std::enable_if_t<
-    rclcpp::TypeAdapter<MessageT>::is_specialized::value &&
-    std::is_same<T, PublishedType>::value
-  >
-  IMAGE_TRANSPORT_PUBLIC
-  publish(std::unique_ptr<T, PublishedTypeDeleter> msg) const
+  typename std::enable_if_t<rclcpp::TypeAdapter<MessageT>::is_specialized::value &&
+    std::is_same<T, PublishedType>::value>
+  IMAGE_TRANSPORT_PUBLIC publish(std::unique_ptr<T, PublishedTypeDeleter> msg) const
   {
-    if (HasPluginSubscribers())
-    {
-      auto shared_msg = std::make_shared<sensor_msgs::msg::Image>();
-      rclcpp::TypeAdapter<MessageT>::convert_to_ros_message(msg, *shared_msg);
-      publish(shared_msg);
+    ZoneNamedN(frame, "publisher", true);  // NOLINT: Profiler
+    if (HasPluginSubscribers()) {
+      static auto shared_msg = std::make_shared<sensor_msgs::msg::Image>();
+      {
+        ZoneNamedN(tree, "convert", true);  // NOLINT: Profiler
+        rclcpp::TypeAdapter<MessageT>::convert_to_ros_message(*msg, *shared_msg);
+      }
+
+      {
+        ZoneNamedN(treeeee, "plugin_publish", true);  // NOLINT: Profiler
+        plugin_publisher.publish(shared_msg);
+      }
     }
 
-    if (raw_publisher->get_subscription_count() > 0){
+    if (raw_publisher->get_subscription_count() > 0) {
+      ZoneNamedN(frame, "raw", true);  // NOLINT: Profiler
       raw_publisher->publish(std::move(msg));
+    }
+  }
+
+  template<typename T>
+  typename std::enable_if_t<rclcpp::TypeAdapter<MessageT>::is_specialized::value &&
+    std::is_same<T, PublishedType>::value>
+  IMAGE_TRANSPORT_PUBLIC publish(
+    std::unique_ptr<T, PublishedTypeDeleter> msg,
+    sensor_msgs::msg::Image & cache) const
+  {
+    ZoneNamedN(frame, "publisher_with_cache", true);  // NOLINT: Profiler
+    if (HasPluginSubscribers()) {
+      {
+        ZoneNamedN(tree, "convert", true);  // NOLINT: Profiler
+        rclcpp::TypeAdapter<MessageT>::convert_to_ros_message(*msg, cache);
+      }
+
+      {
+        ZoneNamedN(treeeee, "plugin_publish", true);  // NOLINT: Profiler
+        plugin_publisher.publish(cache);
+      }
+    }
+
+    if (raw_publisher->get_subscription_count() > 0) {
+      ZoneNamedN(frame, "raw", true);  // NOLINT: Profiler
+      raw_publisher->publish(std::move(msg));
+    }
+  }
+
+  template<typename T>
+  typename std::enable_if_t<rclcpp::TypeAdapter<MessageT>::is_specialized::value &&
+    std::is_same<T, PublishedType>::value>
+  IMAGE_TRANSPORT_PUBLIC publish(const T & msg) const
+  {
+    if (HasPluginSubscribers()) {
+      auto shared_msg = std::make_shared<sensor_msgs::msg::Image>();
+      rclcpp::TypeAdapter<MessageT>::convert_to_ros_message(msg, *shared_msg);
+      plugin_publisher.publish(shared_msg);
+      RCLCPP_WARN(rclcpp::get_logger("freform"), "Publishing to plugin publisher");
+    }
+
+    if (raw_publisher->get_subscription_count() > 0) {
+      raw_publisher->publish(msg);
     }
   }
 
@@ -191,13 +245,19 @@ public:
   operator void *() const;
 
   IMAGE_TRANSPORT_PUBLIC
-  bool operator<(const Publisher & rhs) const {return plugin_publisher < rhs.plugin_publisher;}
+  bool operator<(const PublisherBase & rhs) const {return plugin_publisher < rhs.plugin_publisher;}
 
   IMAGE_TRANSPORT_PUBLIC
-  bool operator!=(const Publisher & rhs) const {return plugin_publisher != rhs.plugin_publisher;}
+  bool operator!=(const PublisherBase & rhs) const
+  {
+    return plugin_publisher != rhs.plugin_publisher;
+  }
 
   IMAGE_TRANSPORT_PUBLIC
-  bool operator==(const Publisher & rhs) const {return plugin_publisher == rhs.plugin_publisher;}
+  bool operator==(const PublisherBase & rhs) const
+  {
+    return plugin_publisher == rhs.plugin_publisher;
+  }
 
 private:
   bool HasPluginSubscribers() const

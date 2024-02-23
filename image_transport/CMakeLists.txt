@@ -18,6 +18,9 @@ find_package(message_filters REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(tracy_profiler REQUIRED)
+
+
 
 # Build image_transport library
 add_library(${PROJECT_NAME}
@@ -32,15 +35,28 @@ add_library(${PROJECT_NAME}
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>")
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>" ${tracy_profiler_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PUBLIC
   message_filters::message_filters
   rclcpp::rclcpp
   ${sensor_msgs_TARGETS})
+ament_target_dependencies(${PROJECT_NAME} PUBLIC
+  "tracy_profiler"
+)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   pluginlib::pluginlib)
+option(TRACY_ENABLE "Enable profiling" ON)
+target_compile_definitions(${PROJECT_NAME} PRIVATE "IMAGE_TRANSPORT_BUILDING_DLL" TRACY_ENABLE)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE "IMAGE_TRANSPORT_BUILDING_DLL")
+# Build image_transport_plugins library (raw)
+add_library(${PROJECT_NAME}_plugins
+  src/manifest.cpp
+)
+add_library(${PROJECT_NAME}::${PROJECT_NAME}_plugins ALIAS ${PROJECT_NAME}_plugins)
+
+target_link_libraries(${PROJECT_NAME}_plugins PRIVATE
+  ${PROJECT_NAME}
+  pluginlib::pluginlib)
 
 # Build list_transports
 add_executable(list_transports src/list_transports.cpp)
@@ -59,7 +75,7 @@ pluginlib_export_plugin_description_file(image_transport default_plugins.xml)
 
 # Install libraries
 install(
-  TARGETS ${PROJECT_NAME}
+  TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_plugins
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -77,7 +93,7 @@ install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
 ament_export_targets(export_${PROJECT_NAME})
 
-ament_export_dependencies(message_filters rclcpp sensor_msgs pluginlib)
+ament_export_dependencies(message_filters rclcpp sensor_msgs pluginlib tracy_profiler)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
